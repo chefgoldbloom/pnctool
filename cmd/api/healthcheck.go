@@ -9,6 +9,6 @@ import (
 // application status, operating environment and version.
 func (app *application) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "status: available")
-	fmt.Fprintf(w, "API version: %s", version)
-	fmt.Fprintf(w, "env: %s", app.cfg.env)
+	fmt.Fprintf(w, "API version: %s\n", version)
+	fmt.Fprintf(w, "env: %s\n", app.cfg.env)
 }
