@@ -21,5 +21,5 @@ func (app *application) showCameraHandler(w http.ResponseWriter, r *http.Request
 		http.NotFound(w, r)
 	}
 
-	fmt.Fprintln(w, "show camera with id: %s\n", id)
+	fmt.Fprintf(w, "show camera with id: %d\n", id)
 }
