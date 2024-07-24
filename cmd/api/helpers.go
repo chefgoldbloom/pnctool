@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -31,4 +32,29 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 
 	// Otherwise, interpolate the movie ID in a placeholder response.
 	return id, nil
+}
+
+func (app *application) writeJSON(w http.ResponseWriter, status int, data any, headers http.Header) error {
+	js, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	js = append(js, '\n')
+
+	// At this point, we know that we won't encounter any more errors before writing the
+	// response, so it's safe to add any headers that we want to include. We loop
+	// through the header map and add each header to the http.ResponseWriter header map.
+	// Note that it's OK if the provided header map is nil. Go doesn't throw an error
+	// if you try to range over (or generally, read from) a nil map.
+	for k, v := range headers {
+		w.Header()[k] = v
+	}
+
+	// Add the "Content-Type: application/json" header, then write the status code and
+	// JSON response.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(js)
+	return nil
 }
