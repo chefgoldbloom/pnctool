@@ -87,6 +87,24 @@ func (c CameraModel) Update(camera *Camera) error {
 
 // Delete removes a camera entry from database
 func (c CameraModel) Delete(id int64) error {
+	if id < 1 {
+		return ErrRecordNotFound
+	}
+	query := `
+		DELETE FROM cameras
+		WHERE id = $1
+	`
+	res, err := c.DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrRecordNotFound
+	}
 	return nil
 }
 
