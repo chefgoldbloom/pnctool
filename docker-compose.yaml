@@ -1,0 +1,12 @@
+services:
+  db:
+    image: postgres:latest
+    ports:
+      - 5432:5432
+    volumes:
+      - ~/apps/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=s3cret
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=pnctool_db
+      - PNC_DB_DSN=postgres://pnctool:pa55word@localhost:5432/pnctool_db?sslmode=disable

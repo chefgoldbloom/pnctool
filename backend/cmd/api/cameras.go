@@ -1,12 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/chefgoldbloom/pnctool/internal/data"
-	"github.com/chefgoldbloom/pnctool/internal/validator"
+	"github.com/chefgoldbloom/pnctool/backend/internal/data"
+	"github.com/chefgoldbloom/pnctool/backend/internal/validator"
 )
 
 // Add a createCameraHandler for the "POST /v1/cameras" endpoint. For now we simply
@@ -16,6 +16,7 @@ func (app *application) createCameraHandler(w http.ResponseWriter, r *http.Reque
 		Name       string `json:"name"`
 		MacAddress string `json:"mac_address"`
 		SiteName   string `json:"site_name"`
+		ModelNo    string `json:"model_no"`
 	}
 
 	err := app.readJSON(w, r, &input)
@@ -27,13 +28,29 @@ func (app *application) createCameraHandler(w http.ResponseWriter, r *http.Reque
 		Name:       input.Name,
 		MacAddress: input.MacAddress,
 		SiteName:   input.SiteName,
+		ModelNo:    input.ModelNo,
 	}
 	v := validator.New()
 	if data.ValidateCamera(v, camera); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-	fmt.Fprintf(w, "%+v\n", input)
+	// fmt.Fprintf(w, "%+v\n", input)
+	err = app.models.Cameras.Insert(camera)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+
+	// Make a Location header to let the client know resource's url
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/cameras/%d", camera.ID))
+
+	// Write JSON response with a 201 Created status code, the camera data
+	// in the response body, and the Location header.
+	err = app.writeJSON(w, http.StatusCreated, envelope{"camera": camera}, headers)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
 
 // Add a showMovieHandler for the "GET /v1/movies/:id" endpoint. For now, we retrieve
@@ -46,13 +63,15 @@ func (app *application) showCameraHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	camera := data.Camera{
-		ID:         id,
-		CreatedAt:  time.Now(),
-		Name:       "This-Is-TestSite Test Camera",
-		MacAddress: "ACCC8593034234",
-		SiteName:   "This-Is-TestSite",
-		Username:   "root",
+	camera, err := app.models.Cameras.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"camera": camera}, nil)
