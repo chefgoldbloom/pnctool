@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS cameras(
     model_no text NOT NULL,
     site_name text NOT NULL,
     username text NOT NULL DEFAULT 'root',
-    password text NOT NULL DEFAULT 'pass'
+    password text NOT NULL DEFAULT 'pass',
+    version integer NOT NULL DEFAULT 1
 );

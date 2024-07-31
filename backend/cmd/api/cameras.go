@@ -35,7 +35,7 @@ func (app *application) createCameraHandler(w http.ResponseWriter, r *http.Reque
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-	// fmt.Fprintf(w, "%+v\n", input)
+
 	err = app.models.Cameras.Insert(camera)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -77,7 +77,57 @@ func (app *application) showCameraHandler(w http.ResponseWriter, r *http.Request
 	err = app.writeJSON(w, http.StatusOK, envelope{"camera": camera}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) updateCameraHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+	}
+
+	camera, err := app.models.Cameras.Get(id)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
+	var input struct {
+		Name       string `json:"name"`
+		MacAddress string `json:"mac_address"`
+		SiteName   string `json:"site_name"`
+		ModelNo    string `json:"model_no"`
+	}
+
+	err = app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+	}
+
+	camera.Name = input.Name
+	camera.MacAddress = input.MacAddress
+	camera.SiteName = input.SiteName
+	camera.ModelNo = input.ModelNo
+
+	v := validator.New()
+	if data.ValidateCamera(v, camera); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	err = app.models.Cameras.Update(camera)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"camera": camera}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }

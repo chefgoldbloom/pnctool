@@ -21,8 +21,8 @@ type Camera struct {
 	SiteName   string    `json:"site_name"`   // String with site name, future: foreign key linked to Site table
 	Username   string    `json:"-"`           // camera username for admin account
 	Password   string    `json:"-"`           // Plaintext password, future: repo integration
-	ModelNo    string    `json:"model_no"`
-	// IpAddress?
+	ModelNo    string    `json:"model_no"`    // String with camera model number/name
+	Version    int32     `json:"version"`     // record version
 }
 
 type CameraModel struct {
@@ -34,11 +34,11 @@ func (c CameraModel) Insert(camera *Camera) error {
 	query := `
 		insert into cameras (name, mac_address, site_name, model_no)
 		values ($1, $2, $3, $4)
-		returning id, created_at
+		returning id, created_at, version
 	`
 	args := []any{camera.Name, camera.MacAddress, camera.SiteName, camera.ModelNo}
 
-	return c.DB.QueryRow(query, args...).Scan(&camera.ID, &camera.CreatedAt)
+	return c.DB.QueryRow(query, args...).Scan(&camera.ID, &camera.CreatedAt, &camera.Version)
 }
 
 // Get retrieves camera from database
@@ -74,7 +74,15 @@ func (c CameraModel) Get(id int64) (*Camera, error) {
 
 // Update updates a camera in database
 func (c CameraModel) Update(camera *Camera) error {
-	return nil
+	query := `
+		UPDATE cameras
+		SET name = $1, mac_address = $2, site_name = $3, model_no = $4, version = version + 1
+		WHERE id = $5
+		RETURNING version
+	`
+	args := []any{camera.Name, camera.MacAddress, camera.SiteName, camera.ModelNo, camera.ID}
+
+	return c.DB.QueryRow(query, args...).Scan(&camera.Version)
 }
 
 // Delete removes a camera entry from database
