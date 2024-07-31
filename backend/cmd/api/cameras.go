@@ -98,10 +98,10 @@ func (app *application) updateCameraHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	var input struct {
-		Name       string `json:"name"`
-		MacAddress string `json:"mac_address"`
-		SiteName   string `json:"site_name"`
-		ModelNo    string `json:"model_no"`
+		Name       *string `json:"name"`
+		MacAddress *string `json:"mac_address"`
+		SiteName   *string `json:"site_name"`
+		ModelNo    *string `json:"model_no"`
 	}
 
 	err = app.readJSON(w, r, &input)
@@ -109,10 +109,19 @@ func (app *application) updateCameraHandler(w http.ResponseWriter, r *http.Reque
 		app.badRequestResponse(w, r, err)
 	}
 
-	camera.Name = input.Name
-	camera.MacAddress = input.MacAddress
-	camera.SiteName = input.SiteName
-	camera.ModelNo = input.ModelNo
+	if input.Name != nil {
+		camera.Name = *input.Name
+	}
+	if input.MacAddress != nil {
+		camera.MacAddress = *input.MacAddress
+	}
+	if input.SiteName != nil {
+		camera.SiteName = *input.SiteName
+
+	}
+	if input.ModelNo != nil {
+		camera.ModelNo = *input.ModelNo
+	}
 
 	v := validator.New()
 	if data.ValidateCamera(v, camera); !v.Valid() {
