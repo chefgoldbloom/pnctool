@@ -9,6 +9,7 @@ import (
 // looking up a camera that doesn't exist
 var (
 	ErrRecordNotFound = errors.New("record not found")
+	ErrEditConflict   = errors.New("edit conflict")
 )
 
 // Create a Models struct that wraps CameraModel

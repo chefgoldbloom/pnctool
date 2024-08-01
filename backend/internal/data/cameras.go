@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"regexp"
@@ -38,7 +39,10 @@ func (c CameraModel) Insert(camera *Camera) error {
 	`
 	args := []any{camera.Name, camera.MacAddress, camera.SiteName, camera.ModelNo}
 
-	return c.DB.QueryRow(query, args...).Scan(&camera.ID, &camera.CreatedAt, &camera.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	return c.DB.QueryRowContext(ctx, query, args...).Scan(&camera.ID, &camera.CreatedAt, &camera.Version)
 }
 
 // Get retrieves camera from database
@@ -53,7 +57,13 @@ func (c CameraModel) Get(id int64) (*Camera, error) {
 	`
 	var camera Camera
 
-	err := c.DB.QueryRow(query, id).Scan(
+	// Create context to terminate long sql queries
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	// defer cancel() to ensure context is cancelled prior to Get() returning
+	defer cancel()
+
+	err := c.DB.QueryRowContext(ctx, query, id).Scan(
 		&camera.ID,
 		&camera.CreatedAt,
 		&camera.Name,
@@ -61,6 +71,7 @@ func (c CameraModel) Get(id int64) (*Camera, error) {
 		&camera.SiteName,
 		&camera.ModelNo,
 	)
+
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -72,17 +83,73 @@ func (c CameraModel) Get(id int64) (*Camera, error) {
 	return &camera, nil
 }
 
+// GetAll() retrieves all cameras from database
+func (c CameraModel) GetAll(name string, mac_address string, model_no string, site_name string, filters Filters) ([]*Camera, error) {
+	query := `
+		select id, created_at, name, mac_address, site_name, model_no, version
+		from cameras
+		order by id
+	`
+	// ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// defer cancel()
+
+	rows, err := c.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cameras := []*Camera{}
+
+	for rows.Next() {
+		var camera Camera
+		err := rows.Scan(
+			&camera.ID,
+			&camera.CreatedAt,
+			&camera.Name,
+			&camera.MacAddress,
+			&camera.ModelNo,
+			&camera.SiteName,
+			&camera.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+		cameras = append(cameras, &camera)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return cameras, nil
+}
+
 // Update updates a camera in database
 func (c CameraModel) Update(camera *Camera) error {
 	query := `
 		UPDATE cameras
 		SET name = $1, mac_address = $2, site_name = $3, model_no = $4, version = version + 1
-		WHERE id = $5
+		WHERE id = $5 AND version = $6
 		RETURNING version
 	`
-	args := []any{camera.Name, camera.MacAddress, camera.SiteName, camera.ModelNo, camera.ID}
+	args := []any{camera.Name, camera.MacAddress, camera.SiteName, camera.ModelNo, camera.ID, camera.Version}
 
-	return c.DB.QueryRow(query, args...).Scan(&camera.Version)
+	// Create context to terminate long sql queries
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	err := c.DB.QueryRowContext(ctx, query, args...).Scan(&camera.Version)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Delete removes a camera entry from database
@@ -94,7 +161,12 @@ func (c CameraModel) Delete(id int64) error {
 		DELETE FROM cameras
 		WHERE id = $1
 	`
-	res, err := c.DB.Exec(query, id)
+	// Create context to terminate long sql queries
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	res, err := c.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}

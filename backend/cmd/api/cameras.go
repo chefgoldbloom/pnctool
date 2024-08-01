@@ -131,7 +131,12 @@ func (app *application) updateCameraHandler(w http.ResponseWriter, r *http.Reque
 
 	err = app.models.Cameras.Update(camera)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrEditConflict):
+			app.editConflictResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -158,6 +163,56 @@ func (app *application) deleteCameraHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "camera successfully deleted"}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}
+
+func (app *application) listCamerasHandler(w http.ResponseWriter, r *http.Request) {
+	// Embed Filters struct
+	var input struct {
+		Name       string
+		MacAddress string
+		ModelNo    string
+		SiteName   string
+		data.Filters
+	}
+
+	// init new Validator instance
+	v := validator.New()
+
+	// Call r.URL.Query() to get url.Values map
+	qs := r.URL.Query()
+
+	// Use helpers to extract information, falling back to defaults if needed
+	input.Name = app.readString(qs, "name", "")
+	input.MacAddress = app.readString(qs, "mac_address", "")
+	input.ModelNo = app.readString(qs, "model_no", "")
+	input.SiteName = app.readString(qs, "site_name", "")
+
+	// Read page and page_size into Filter
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = app.readString(qs, "sort", "id")
+
+	input.Filters.SortSafelist = []string{"id", "name", "mac_address", "model_no", "site_name", "-id", "-name", "-model_no", "-site_name"}
+
+	if data.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	cameras, err := app.models.Cameras.GetAll(input.Name, input.MacAddress, input.ModelNo, input.SiteName, input.Filters)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"cameras": cameras}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
